@@ -175,7 +175,7 @@ void initMQTThandlers()
     responseDoc["igro"] = readSoilMoisture(doc.containsKey("force") ? true : false);
     responseDoc["relay"] = readRelayState();
 
-    mqttPublish(topics.sensors.c_str(), responseDoc);
+    mqttPublish(topics.data.c_str(), responseDoc);
   };
 
   commandHandlers["shutdown-r"] = [](const JsonDocument &doc) {

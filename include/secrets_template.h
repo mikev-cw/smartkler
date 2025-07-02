@@ -1,4 +1,3 @@
-// secrets.h
 #include <cstdint>
 #ifndef SECRETS_H
 #define SECRETS_H

@@ -7,7 +7,7 @@ struct Topics
 {
     String commands; // Where commands are received
     String systemEvents; // System events like boot, errors, commands responses, etc.
-    String sensors; // Where sensors messages and data are sent
+    String data; // Where sensors data and system configs are sent
     String valve; // Relay history events
     String lwt; // Last Will and Testament topic for MQTT
 };

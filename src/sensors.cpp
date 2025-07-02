@@ -76,7 +76,7 @@ int setRelayState(bool state)
     StaticJsonDocument<64> maindoc;
     JsonObject relayObj = maindoc.createNestedObject("relay");
     relayObj["relay_state"] = newstate;
-    mqttPublish(topics.sensors.c_str(), maindoc);
+    mqttPublish(topics.data.c_str(), maindoc);
 
     return newstate; // Return the new state
 }

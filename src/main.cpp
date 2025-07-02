@@ -127,7 +127,7 @@ void setup()
   topics = {
       "smartkler/commands/" + device_id,
       "smartkler/systemEvents/" + device_id,
-      "smartkler/sensors/" + device_id,
+      "smartkler/data/" + device_id,
       "smartkler/valve/" + device_id,
       "smartkler/lwt/" + device_id,
   };
@@ -188,7 +188,7 @@ void loop()
         responseDoc["igro"] = readSoilMoisture(false); 
         responseDoc["relay"] = readRelayState();
 
-        mqttPublish(topics.sensors.c_str(), responseDoc);
+        mqttPublish(topics.data.c_str(), responseDoc);
     }
 
     lastLoopTick = now;
