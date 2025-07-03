@@ -17,64 +17,10 @@ std::map<String, std::function<void(const JsonDocument &)>> commandHandlers;
 extern WiFiClient espClient;
 extern PubSubClient mqttClient;
 
-String clientId = "Smartkler-" + String(ESP.getChipId(), HEX);
+String clientId = "Smartkler-" + String(ESP.getChipId());
 
 void initMQTThandlers()
 {
-  commandHandlers["setIgroMappers__DEPRECATED"] = [](const JsonDocument &doc)
-  {
-    int oldMin = SOIL_MOISTURE_RAW_MIN;
-    int oldMax = SOIL_MOISTURE_RAW_MAX;
-    bool changedMin = false;
-    bool changedMax = false;
-
-    if (doc.containsKey("min"))
-    {
-      SOIL_MOISTURE_RAW_MIN = doc["min"];
-      changedMin = (SOIL_MOISTURE_RAW_MIN != oldMin);
-    }
-
-    if (doc.containsKey("max"))
-    {
-      SOIL_MOISTURE_RAW_MAX = doc["max"];
-      changedMax = (SOIL_MOISTURE_RAW_MAX != oldMax);
-    }
-
-    Serial.println("Soil moisture calibration update requested:");
-    if (changedMin)
-      Serial.println("  MIN changed: " + String(oldMin) + " → " + String(SOIL_MOISTURE_RAW_MIN));
-    if (changedMax)
-      Serial.println("  MAX changed: " + String(oldMax) + " → " + String(SOIL_MOISTURE_RAW_MAX));
-    if (!changedMin && !changedMax)
-      Serial.println("  No changes were made.");
-
-    // Prepare MQTT response
-    StaticJsonDocument<128> responseDoc;
-    responseDoc["command_result"] = doc;
-    responseDoc["with_err"] = false;
-    responseDoc["message"] = "";
-
-    if (changedMin)
-    {
-      responseDoc["min_old"] = oldMin;
-      responseDoc["min_new"] = SOIL_MOISTURE_RAW_MIN;
-    }
-
-    if (changedMax)
-    {
-      responseDoc["max_old"] = oldMax;
-      responseDoc["max_new"] = SOIL_MOISTURE_RAW_MAX;
-    }
-
-    if (!changedMin && !changedMax)
-    {
-      responseDoc["with_err"] = true;
-      responseDoc["message"] = "No calibration values changed.";
-    }
-
-    mqttPublish(topics.systemEvents.c_str(), responseDoc);
-  };
-
   commandHandlers["setConfigParam"] = [](const JsonDocument &doc)
   {
     bool anyChange = false;
@@ -86,11 +32,11 @@ void initMQTThandlers()
     if (doc.containsKey("igro_min"))
     {
       int newMin = doc["igro_min"];
-      if (newMin != SOIL_MOISTURE_RAW_MIN)
+      if (newMin != soilMoistureCalibrationMin)
       {
-        responseDoc["igro_min_old"] = SOIL_MOISTURE_RAW_MIN;
-        SOIL_MOISTURE_RAW_MIN = newMin;
-        responseDoc["igro_min_new"] = SOIL_MOISTURE_RAW_MIN;
+        responseDoc["igro_min_old"] = soilMoistureCalibrationMin;
+        soilMoistureCalibrationMin = newMin;
+        responseDoc["igro_min_new"] = soilMoistureCalibrationMin;
         anyChange = true;
       }
     }
@@ -98,11 +44,11 @@ void initMQTThandlers()
     if (doc.containsKey("igro_max"))
     {
       int newMax = doc["igro_max"];
-      if (newMax != SOIL_MOISTURE_RAW_MAX)
+      if (newMax != soilMoistureCalibrationMax)
       {
-        responseDoc["igro_max_old"] = SOIL_MOISTURE_RAW_MAX;
-        SOIL_MOISTURE_RAW_MAX = newMax;
-        responseDoc["igro_max_new"] = SOIL_MOISTURE_RAW_MAX;
+        responseDoc["igro_max_old"] = soilMoistureCalibrationMax;
+        soilMoistureCalibrationMax = newMax;
+        responseDoc["igro_max_new"] = soilMoistureCalibrationMax;
         anyChange = true;
       }
     }
@@ -112,10 +58,10 @@ void initMQTThandlers()
       unsigned long newValMin = doc["moistureSensorInterval_minutes"];
       unsigned long newValMs = newValMin * 60UL * 1000UL;
 
-      if (newValMs != minReadIntervalMs)
+      if (newValMs != soilReadsIntervalMs)
       {
-        responseDoc["moistureSensorInterval_minutes_old"] = minReadIntervalMs / 60000UL;
-        minReadIntervalMs = newValMs;
+        responseDoc["moistureSensorInterval_minutes_old"] = soilReadsIntervalMs / 60000UL;
+        soilReadsIntervalMs = newValMs;
         responseDoc["moistureSensorInterval_minutes_new"] = newValMin;
         anyChange = true;
       }
@@ -126,10 +72,10 @@ void initMQTThandlers()
       unsigned long newValMin = doc["sensorDataInterval_minutes"];
       unsigned long newValMs = newValMin * 60UL * 1000UL;
 
-      if (newValMs != sensorInfoInterval)
+      if (newValMs != sensorInfoPublishIntervalMs)
       {
-        responseDoc["sensorDataInterval_minutes_old"] = sensorInfoInterval / 60000UL;
-        sensorInfoInterval = newValMs;
+        responseDoc["sensorDataInterval_minutes_old"] = sensorInfoPublishIntervalMs / 60000UL;
+        sensorInfoPublishIntervalMs = newValMs;
         responseDoc["sensorDataInterval_minutes_new"] = newValMin;
         anyChange = true;
       }
@@ -159,7 +105,7 @@ void initMQTThandlers()
 
       Serial.printf("Turning valve ON for %d min if soil moisture is < %d%% \n", minutes, maxMoisture);
       valveDurationMs = (unsigned long)minutes * 60000;
-      valveLastStartTime = millis(); // Start timer
+      lastValveStartTime = millis(); // Start timer
       setRelayState(true);
     }
     else if (state == "off")

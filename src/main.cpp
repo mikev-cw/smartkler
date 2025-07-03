@@ -8,9 +8,6 @@
 #include <NTPClient.h>
 #include <fauxmoESP.h>
 
-// Config
-unsigned long epochTime; // Variable to hold current epoch timestamp
-
 // Modules inits
 fauxmoESP fauxmo;                   // Alexa
 WiFiClient espClient;               // WiFi
@@ -29,20 +26,26 @@ String device_id;
 Topics topics;
 const int pinIgro = A0;  // igro
 const int pinRelay = D6; // valve relay
-int SOIL_MOISTURE_RAW_MIN = 300;
-int SOIL_MOISTURE_RAW_MAX = 1023;
-unsigned long lastMoistureReadTime = 0;
-StaticJsonDocument<128> lastMoistureReading;
-unsigned long minReadIntervalMs = 300000; // 5 minutes // minimum interval between soil moisture reads
-unsigned long valveLastStartTime = 0;
+unsigned long valveDurationMs = 0; // Duration setted for which the valve should be open (in milliseconds)
+
+// Defaults
 const unsigned long valveSecurityStop = 45UL * 60UL * 1000UL; // 45 minutes
-unsigned int defaultDurationMinutes = 10;
-unsigned int defaultMoistureLimit = 150;
-unsigned long valveDurationMs = 0;
+unsigned int defaultDurationMinutes = 10; // Default value when Valve turned on without a duration
+unsigned int defaultMoistureLimit = 150; // Default value for skipping irrigation if soil moisture is above limit when valve is turned on without a limit
+int soilMoistureCalibrationMin = 300;
+int soilMoistureCalibrationMax = 1023;
+
+// Intervals
+const unsigned long loopIntervalMs = 60UL * 1000UL;                 // Loop interval
+unsigned long sensorInfoPublishIntervalMs = 10UL * 60UL * 1000UL;   // Sensor data publishing interval
+unsigned long soilReadsIntervalMs = 5UL * 60UL * 1000UL;            // minimum interval between every soil moisture reads
+
+// Timings 
 unsigned long lastLoopTick = 0;
-const unsigned long loopIntervalMs = 1000; // Loop interval
-unsigned long lastSensorInfoPublish = 0;
-unsigned long sensorInfoInterval = 10UL * 60UL * 1000UL; // 10 minutes
+unsigned long lastValveStartTime = 0;
+unsigned long lastSensorInfoPublished = 0;
+unsigned long lastMoistureReadTime = 0; // Last millis soil moisture was read
+StaticJsonDocument<128> lastMoistureData;
 
 unsigned long GetEpochTime()
 {
@@ -151,8 +154,6 @@ void setup()
     Serial.println("WiFi Reconnected. IP: " + getDeviceIP()); 
   });
 
-  epochTime = GetEpochTime();
-
   // Alexa related setup
   fauxmoSetup();
 
@@ -161,7 +162,6 @@ void setup()
 
   Serial.println("Device ID: " + device_id);
   Serial.printf("Device IP: %s\n", WiFi.localIP().toString().c_str());
-  Serial.printf("Epoch Time: %lu\n", epochTime);
 
   readSoilMoisture(true); // Initial read to set min/max values // TODO send MQTT sensors
 
@@ -175,14 +175,11 @@ void loop()
 {
     unsigned long now = millis();
 
-    if (now - lastLoopTick < loopIntervalMs)
-    {
-        return; // too early, skip this loop cycle
-    }
+    if (now - lastLoopTick < loopIntervalMs) return; // too early, skip this loop cycle
 
-    if (now - lastSensorInfoPublish >= sensorInfoInterval)
+    if (now - lastSensorInfoPublished >= sensorInfoPublishIntervalMs)
     {
-        lastSensorInfoPublish = now;
+        lastSensorInfoPublished = now;
 
         StaticJsonDocument<256> responseDoc;
         responseDoc["igro"] = readSoilMoisture(false); 

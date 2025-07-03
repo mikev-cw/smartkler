@@ -18,14 +18,14 @@ extern const int pinIgro;
 extern const int pinRelay;
 
 // Soil moisture sensor
-extern int SOIL_MOISTURE_RAW_MIN;
-extern int SOIL_MOISTURE_RAW_MAX;
+extern int soilMoistureCalibrationMin;
+extern int soilMoistureCalibrationMax;
 extern unsigned long lastMoistureReadTime;
-extern StaticJsonDocument<128> lastMoistureReading;
-extern unsigned long minReadIntervalMs;
+extern StaticJsonDocument<128> lastMoistureData;
+extern unsigned long soilReadsIntervalMs;
 
 // Relay
-extern unsigned long valveLastStartTime;
+extern unsigned long lastValveStartTime;
 extern const unsigned long valveSecurityStop;
 extern unsigned long valveDurationMs;
 
@@ -34,7 +34,7 @@ String getUptime();
 extern unsigned long GetEpochTime();
 extern unsigned int defaultDurationMinutes;
 extern unsigned int defaultMoistureLimit;
-extern unsigned long lastSensorInfoPublish;
-extern unsigned long sensorInfoInterval;
+extern unsigned long lastSensorInfoPublished;
+extern unsigned long sensorInfoPublishIntervalMs;
 
 #endif

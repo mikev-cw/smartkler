@@ -7,21 +7,20 @@ StaticJsonDocument<128>& readSoilMoisture(bool forceRead = false)
 {
     unsigned long now = millis();
 
-    if (!forceRead && (now - lastMoistureReadTime < minReadIntervalMs))
+    if (!forceRead && (now - lastMoistureReadTime < soilReadsIntervalMs))
     {
         Serial.println("Serving last soil read (too recent)");
-        return lastMoistureReading;
+        return lastMoistureData;
     }
 
     int raw = analogRead(pinIgro);
 
     // Map raw value to percentage (adjust min/max based on real sensor)
-    int percent = map(raw, SOIL_MOISTURE_RAW_MAX, SOIL_MOISTURE_RAW_MIN, 0, 100);
+    int percent = map(raw, soilMoistureCalibrationMax, soilMoistureCalibrationMin, 0, 100);
 
     // Clamp the value between 0 and 100
     percent = constrain(percent, 0, 100); // TOD verify this
 
-    // return JSONED raw value, percent value
     Serial.print("Raw Soil Moisture: ");
     Serial.print(raw);
     Serial.print(" | Mapped to Percent: ");
@@ -32,10 +31,10 @@ StaticJsonDocument<128>& readSoilMoisture(bool forceRead = false)
     doc["raw"] = raw;
     doc["percent"] = percent;
     doc["timestamp"] = now;
-    doc["raw_mapper_min"] = SOIL_MOISTURE_RAW_MIN;
-    doc["raw_mapper_max"] = SOIL_MOISTURE_RAW_MAX;
+    doc["raw_mapper_min"] = soilMoistureCalibrationMin;
+    doc["raw_mapper_max"] = soilMoistureCalibrationMax;
 
-    lastMoistureReading = doc;
+    lastMoistureData = doc;
     lastMoistureReadTime = now;
 
     return doc;
@@ -93,13 +92,13 @@ void checkValveWatchdog()
     String reason;
     
     // 1. Duration expired
-    if (now - valveLastStartTime >= valveDurationMs)
+    if (now - lastValveStartTime >= valveDurationMs)
     {
         shouldStop = true;
         reason = "Regular time expired";
     }
 
-    if (now - valveLastStartTime > valveSecurityStop)
+    if (now - lastValveStartTime > valveSecurityStop)
     {
         shouldStop = true;
         reason = "Watchdog security Timeout";
