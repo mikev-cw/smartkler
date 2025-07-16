@@ -240,7 +240,7 @@ void connectToMQTT()
         {
           Serial.print("-MQTT_CONNECT_BAD_CREDENTIALS - the username/password were rejected");
         }
-        if (mqttClient.state() == 4)
+        if (mqttClient.state() == 5)
         {
           Serial.print("-MQTT_CONNECT_UNAUTHORIZED - the client was not authorized to connect");
         }
