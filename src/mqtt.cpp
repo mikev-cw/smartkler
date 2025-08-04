@@ -278,7 +278,7 @@ void mqttPublish(const char *topic, const JsonDocument &payload)
   unsigned long now = GetEpochTime();
   char isoTime[25];
   time_t rawtime = (time_t)now;
-  struct tm *timeinfo = localtime(&rawtime);
+  struct tm *timeinfo = gmtime(&rawtime);
   strftime(isoTime, sizeof(isoTime), "%Y-%m-%dT%H:%M:%SZ", timeinfo);
 
   // Build wrapper
@@ -357,4 +357,12 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   //       digitalWrite(pin_Relay, HIGH);
   //     }
   //   }
+}
+
+void publishSensorData(bool calibrate)
+{
+  StaticJsonDocument<256> dataDoc;
+  dataDoc["igro"] = readSoilMoisture(calibrate);
+  dataDoc["relay"] = readRelayState();
+  mqttPublish(topics.data.c_str(), dataDoc);
 }

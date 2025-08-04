@@ -11,5 +11,6 @@ void checkMQTTConnection();
 void mqttSubscribe(const char* topic);
 void mqttPublish(const char *topic, const JsonDocument &payload);
 void mqttCallback(char *topic, byte *payload, unsigned int length);
+void publishSensorData(bool calibrate);
 
 #endif

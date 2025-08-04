@@ -122,9 +122,6 @@ void setup()
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
-  setenv("TZ", "CET-1CEST,M3.5.0/2,M10.5.0/3", 1); // Italian timezone
-  tzset();
-
   device_id = (String)ESP.getChipId();
 
   topics = {
@@ -163,7 +160,7 @@ void setup()
   Serial.println("Device ID: " + device_id);
   Serial.printf("Device IP: %s\n", WiFi.localIP().toString().c_str());
 
-  readSoilMoisture(true); // Initial read to set min/max values // TODO send MQTT sensors
+  publishSensorData(true); // Initial read to set min/max values
 
   StaticJsonDocument<96> responseDocEvt;
   responseDocEvt["action"] = "Smartkler Started";
@@ -177,18 +174,13 @@ void loop()
 
     if (now - lastLoopTick < loopIntervalMs) return; // too early, skip this loop cycle
 
+    lastLoopTick = now;
+    
     if (now - lastSensorInfoPublished >= sensorInfoPublishIntervalMs)
     {
         lastSensorInfoPublished = now;
-
-        StaticJsonDocument<256> responseDoc;
-        responseDoc["igro"] = readSoilMoisture(false); 
-        responseDoc["relay"] = readRelayState();
-
-        mqttPublish(topics.data.c_str(), responseDoc);
+        publishSensorData(false);
     }
-
-    lastLoopTick = now;
 
     checkWiFiConnection();
     checkMQTTConnection();
