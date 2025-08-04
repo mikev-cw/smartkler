@@ -70,14 +70,9 @@ int setRelayState(bool state)
     
     mqttPublish(topics.valve.c_str(), msg);
 
-    int newstate = digitalRead(pinRelay);
+    publishSensorData();
 
-    StaticJsonDocument<64> maindoc;
-    JsonObject relayObj = maindoc.createNestedObject("relay");
-    relayObj["relay_state"] = newstate;
-    mqttPublish(topics.data.c_str(), maindoc);
-
-    return newstate; // Return the new state
+    return digitalRead(pinRelay); // Return the new state
 }
 
 void checkValveWatchdog()
@@ -108,10 +103,6 @@ void checkValveWatchdog()
     {
         Serial.printf("[VALVE] Auto-off triggered: reason = %s\n", reason.c_str());
         setRelayState(false);
-
-        StaticJsonDocument<128> msg;
-        msg["command_result"] = "valve_auto_off";
-        msg["reason"] = reason;
-        mqttPublish(topics.systemEvents.c_str(), msg);
+        publishSystemEvent("Valve Auto-Off", reason.c_str());
     }
 }

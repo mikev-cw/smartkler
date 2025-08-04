@@ -36,7 +36,7 @@ int soilMoistureCalibrationMin = 300;
 int soilMoistureCalibrationMax = 1023;
 
 // Intervals
-const unsigned long loopIntervalMs = 60UL * 1000UL;                 // Loop interval
+const unsigned long loopIntervalMs = 2UL * 1000UL;                  // Loop interval
 unsigned long sensorInfoPublishIntervalMs = 10UL * 60UL * 1000UL;   // Sensor data publishing interval
 unsigned long soilReadsIntervalMs = 5UL * 60UL * 1000UL;            // minimum interval between every soil moisture reads
 
@@ -80,10 +80,7 @@ void OTASetup() {
     ArduinoOTA.setHostname(("smartkler-" + device_id).c_str());
     ArduinoOTA.onStart([]()
     { 
-        StaticJsonDocument<64> otaDoc;
-        otaDoc["action"] = "OTA Update Started";
-        otaDoc["action_code"] = "ota_start";
-        mqttPublish(topics.systemEvents.c_str(), otaDoc);
+        publishSystemEvent("OTA Update Started", "ota_start");
         Serial.println("OTA Start");
     });
 
@@ -161,31 +158,28 @@ void setup()
   Serial.printf("Device IP: %s\n", WiFi.localIP().toString().c_str());
 
   publishSensorData(true); // Initial read to set min/max values
-
-  StaticJsonDocument<96> responseDocEvt;
-  responseDocEvt["action"] = "Smartkler Started";
-  responseDocEvt["action_code"] = "system_started";
-  mqttPublish(topics.systemEvents.c_str(), responseDocEvt);
+  publishSystemEvent("Smartkler Started", "system_started");
 }
 
 void loop()
 {
+    mqttClient.loop();
+    ArduinoOTA.handle();
+    fauxmo.handle();
+    checkValveWatchdog();
+
     unsigned long now = millis();
 
-    if (now - lastLoopTick < loopIntervalMs) return; // too early, skip this loop cycle
-
-    lastLoopTick = now;
-    
     if (now - lastSensorInfoPublished >= sensorInfoPublishIntervalMs)
     {
         lastSensorInfoPublished = now;
-        publishSensorData(false);
+        publishSensorData();
     }
 
+    if (now - lastLoopTick < loopIntervalMs)
+        return; // throttle heavy checks
+
+    lastLoopTick = now;
     checkWiFiConnection();
     checkMQTTConnection();
-    checkValveWatchdog();
-
-    ArduinoOTA.handle();
-    fauxmo.handle();
 }

@@ -117,19 +117,12 @@ void initMQTThandlers()
 
   commandHandlers["getData"] = [](const JsonDocument &doc)
   {
-    StaticJsonDocument<256> responseDoc;
-    responseDoc["igro"] = readSoilMoisture(doc.containsKey("force") ? true : false);
-    responseDoc["relay"] = readRelayState();
-
-    mqttPublish(topics.data.c_str(), responseDoc);
+    publishSensorData(doc.containsKey("force") ? true : false);
   };
 
   commandHandlers["shutdown-r"] = [](const JsonDocument &doc) {
     Serial.println("Restarting device...");
-    StaticJsonDocument<96> responseDoc;
-    responseDoc["action"] = "Smartkler Restarting";
-    responseDoc["action_code"] = "system_rebooting";
-    mqttPublish(topics.systemEvents.c_str(), responseDoc);
+    publishSystemEvent("Smartkler Restarting", "system_rebooting");
     delay(3000);
     ESP.restart();
   };
@@ -137,10 +130,7 @@ void initMQTThandlers()
   commandHandlers["shutdown-h"] = [](const JsonDocument &doc)
   {
     Serial.println("System Shutdown...");
-    StaticJsonDocument<96> responseDoc;
-    responseDoc["action"] = "Smartkler Shutting Down";
-    responseDoc["action_code"] = "system_shutting_down";
-    mqttPublish(topics.systemEvents.c_str(), responseDoc);
+    publishSystemEvent("Smartkler Shutting Down", "system_shutting_down");
     delay(3000);
     ESP.deepSleep(0);
   };
@@ -148,10 +138,7 @@ void initMQTThandlers()
   commandHandlers["ping"] = [](const JsonDocument &doc)
   {
     Serial.println("Ping request received");
-    StaticJsonDocument<96> responseDoc;
-    responseDoc["action"] = "PONG!";
-    responseDoc["action_code"] = "ping_response";
-    mqttPublish(topics.systemEvents.c_str(), responseDoc);
+    publishSystemEvent("PONG!", "ping_response");
   };
 };
 
@@ -178,11 +165,7 @@ void connectToMQTT()
         Serial.println("connected to MQTT broker " + String(MQTT_SERVER));
         // Subscribe to topics after successful connection
         mqttSubscribe(topics.commands.c_str());
-
-        StaticJsonDocument<96> doc;
-        doc["action"] = "MQTT connected";
-        doc["action_code"] = "mqtt_connected";
-        mqttPublish(topics.systemEvents.c_str(), doc);
+        publishSystemEvent("MQTT connected", "mqtt_connected");
         
         // LWT
         mqttClient.publish(topics.lwt.c_str(), "online", true);
@@ -262,7 +245,6 @@ void checkMQTTConnection()
   {
     connectToMQTT();
   }
-  mqttClient.loop();
 }
 
 void mqttSubscribe(const char *topic)
@@ -359,10 +341,18 @@ void mqttCallback(char *topic, byte *payload, unsigned int length)
   //   }
 }
 
-void publishSensorData(bool calibrate)
+void publishSystemEvent(const char *action, const char *actionCode)
+{
+  StaticJsonDocument<96> doc;
+  doc["action"] = action;
+  doc["action_code"] = actionCode;
+  mqttPublish(topics.systemEvents.c_str(), doc);
+}
+
+void publishSensorData(bool force)
 {
   StaticJsonDocument<256> dataDoc;
-  dataDoc["igro"] = readSoilMoisture(calibrate);
+  dataDoc["igro"] = readSoilMoisture(force);
   dataDoc["relay"] = readRelayState();
   mqttPublish(topics.data.c_str(), dataDoc);
 }
