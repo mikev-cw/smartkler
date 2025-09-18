@@ -149,6 +149,7 @@ void connectToMQTT()
     {
       mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
       mqttClient.setCallback(mqttCallback);
+      mqttClient.setKeepAlive(30);
 
       initMQTThandlers();
       
@@ -267,15 +268,42 @@ void mqttPublish(const char *topic, const JsonDocument &payload)
   doc["timestamp"] = now;
   doc["datetime"] = isoTime;
   doc["uptime"] = getUptime();
+  doc["device_ip"] = deviceIP.c_str(); // Why this is not working?
 
+  int rssi = WiFi.RSSI();
+  int quality = map(rssi, -90, -30, 0, 100); // clamp between 0–100%
+  quality = constrain(quality, 0, 100);
+  doc["rssi"] = rssi;
+  doc["signal_quality"] = quality;
+  
   // Deep copy 'payload' into "data"
   doc["data"] = payload;
 
   // Serialize and publish
   char buffer[512];
   size_t len = serializeJson(doc, buffer);
-  mqttClient.publish(topic, buffer, len);
-  Serial.println("Published to " + String(topic) + ": " + payload.as<String>());
+  //mqttClient.publish(topic, (const uint8_t *)buffer, len, false);
+  bool ok = mqttClient.publish(topic, (const uint8_t *)buffer, len, false);
+
+  if (!ok)
+  {
+    Serial.println(F("MQTT publish failed (packet too big?)"));
+    Serial.printf("Doc capacity: %d, used: %d\n", doc.capacity(), doc.memoryUsage());
+    Serial.print("MQTT_MAX_PACKET_SIZE = ");
+    Serial.println(MQTT_MAX_PACKET_SIZE);
+
+    char msg[128];
+    snprintf(msg, sizeof(msg),
+             "MQTT Publish failed to %s. cap:%d used:%d MQTT_MAX_PACKET_SIZE:%d",
+             topic,
+             doc.capacity(),
+             doc.memoryUsage(),
+             MQTT_MAX_PACKET_SIZE);
+
+    publishSystemEvent(msg, "mqtt_publish_failed");
+  } else {
+    Serial.println("Published to " + String(topic) + ": " + doc.as<String>());
+  }
 }
 
 void mqttCallback(char *topic, byte *payload, unsigned int length)

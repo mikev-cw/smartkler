@@ -13,7 +13,8 @@ struct Topics
 };
 
 extern Topics topics;
-extern String device_id;
+extern String deviceID;
+extern String deviceIP;
 extern const int pinIgro;
 extern const int pinRelay;
 

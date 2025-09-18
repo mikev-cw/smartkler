@@ -11,6 +11,7 @@ StaticJsonDocument<128>& readSoilMoisture(bool forceRead = false)
     {
         Serial.println("Serving last soil read (too recent)");
         return lastMoistureData;
+        // TODO When calibration params are changed, we should serve the actual ones, as the stored ones are not updated
     }
 
     int raw = analogRead(pinIgro);
@@ -19,7 +20,7 @@ StaticJsonDocument<128>& readSoilMoisture(bool forceRead = false)
     int percent = map(raw, soilMoistureCalibrationMax, soilMoistureCalibrationMin, 0, 100);
 
     // Clamp the value between 0 and 100
-    percent = constrain(percent, 0, 100); // TOD verify this
+    percent = constrain(percent, 0, 100); // TODO verify this
 
     Serial.print("Raw Soil Moisture: ");
     Serial.print(raw);
@@ -70,7 +71,7 @@ int setRelayState(bool state)
     
     mqttPublish(topics.valve.c_str(), msg);
 
-    publishSensorData();
+    publishSensorData(true);
 
     return digitalRead(pinRelay); // Return the new state
 }

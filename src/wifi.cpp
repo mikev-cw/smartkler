@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <WiFiManager.h>
 #include <ESP8266WiFi.h>
+#include <ArduinoJson.h>
+#include "globals.h"
 
 String getDeviceIP()
 {
@@ -27,7 +29,8 @@ void connectToWiFi()
 
   Serial.println("WiFi connected.");
   Serial.print("IP Address: ");
-  Serial.println(getDeviceIP());
+  deviceIP = getDeviceIP();
+  Serial.println(deviceIP);
 }
 
 void checkWiFiConnection()

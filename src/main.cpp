@@ -1,3 +1,6 @@
+// Defines
+#define MQTT_MAX_PACKET_SIZE 512
+
 // Libs
 #include <Arduino.h>
 #include <ArduinoOTA.h>
@@ -22,7 +25,8 @@ NTPClient timeClient(ntpUDP, "it.pool.ntp.org");
 #include "mqtt.h"
 
 // Global defines
-String device_id;
+String deviceID;
+String deviceIP;
 Topics topics;
 const int pinIgro = A0;  // igro
 const int pinRelay = D6; // valve relay
@@ -77,7 +81,7 @@ String getUptime()
 }
 
 void OTASetup() {
-    ArduinoOTA.setHostname(("smartkler-" + device_id).c_str());
+    ArduinoOTA.setHostname(("smartkler-" + deviceID).c_str());
     ArduinoOTA.onStart([]()
     { 
         publishSystemEvent("OTA Update Started", "ota_start");
@@ -119,14 +123,14 @@ void setup()
   Serial.begin(115200);
   Serial.setDebugOutput(true);
 
-  device_id = (String)ESP.getChipId();
+  deviceID = (String)ESP.getChipId();
 
   topics = {
-      "smartkler/commands/" + device_id,
-      "smartkler/systemEvents/" + device_id,
-      "smartkler/data/" + device_id,
-      "smartkler/valve/" + device_id,
-      "smartkler/lwt/" + device_id,
+      "smartkler/commands/" + deviceID,
+      "smartkler/systemEvents/" + deviceID,
+      "smartkler/data/" + deviceID,
+      "smartkler/valve/" + deviceID,
+      "smartkler/lwt/" + deviceID,
   };
 
   pinMode(pinIgro, INPUT);
@@ -140,12 +144,13 @@ void setup()
 
   // handle WiFi connection events
   WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &event) {
-    Serial.println("WiFi disconnected. Trying to reconnect...");
+    Serial.printf("WiFi disconnected: reason=%d, RSSI=%d\n", event.reason, WiFi.RSSI());
     WiFi.begin(); 
   });
 
-  WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &event) { 
-    Serial.println("WiFi Reconnected. IP: " + getDeviceIP()); 
+  WiFi.onStationModeGotIP([](const WiFiEventStationModeGotIP &event) {
+    deviceIP = getDeviceIP();
+    Serial.println("WiFi Reconnected. IP: " + deviceIP);
   });
 
   // Alexa related setup
@@ -154,8 +159,8 @@ void setup()
   // OTA setup
   OTASetup();
 
-  Serial.println("Device ID: " + device_id);
-  Serial.printf("Device IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.println("Device ID: " + deviceID);
+  Serial.printf("Device IP: %s\n", deviceIP.c_str());
 
   publishSensorData(true); // Initial read to set min/max values
   publishSystemEvent("Smartkler Started", "system_started");
@@ -176,10 +181,11 @@ void loop()
         publishSensorData();
     }
 
-    if (now - lastLoopTick < loopIntervalMs)
-        return; // throttle heavy checks
-
-    lastLoopTick = now;
-    checkWiFiConnection();
-    checkMQTTConnection();
+    // heavy checks throttled
+    if (now - lastLoopTick >= loopIntervalMs)
+    {
+        lastLoopTick = now;
+        checkWiFiConnection();
+        checkMQTTConnection();
+    }
 }
