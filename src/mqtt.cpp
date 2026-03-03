@@ -268,13 +268,13 @@ void mqttPublish(const char *topic, const JsonDocument &payload)
   doc["timestamp"] = now;
   doc["datetime"] = isoTime;
   doc["uptime"] = getUptime();
-  doc["device_ip"] = deviceIP.c_str(); // Why this is not working?
+  doc["device_ip"] = deviceIP.c_str(); 
 
   int rssi = WiFi.RSSI();
   int quality = map(rssi, -90, -30, 0, 100); // clamp between 0–100%
   quality = constrain(quality, 0, 100);
-  doc["rssi"] = rssi;
-  doc["signal_quality"] = quality;
+  doc["rssi_db"] = rssi;
+  doc["wifi_signal_quality_percent"] = quality;
   
   // Deep copy 'payload' into "data"
   doc["data"] = payload;
