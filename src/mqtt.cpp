@@ -1,4 +1,9 @@
+#if defined(ESP8266)
 #include <ESP8266WiFi.h>
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <esp_sleep.h>
+#endif
 #include <PubSubClient.h>
 #include <map>
 #include <functional>
@@ -17,7 +22,7 @@ std::map<String, std::function<void(const JsonDocument &)>> commandHandlers;
 extern WiFiClient espClient;
 extern PubSubClient mqttClient;
 
-String clientId = "Smartkler-" + String(ESP.getChipId());
+String clientId = "Smartkler-" + getDeviceId();
 
 void initMQTThandlers()
 {
@@ -132,7 +137,11 @@ void initMQTThandlers()
     Serial.println("System Shutdown...");
     publishSystemEvent("Smartkler Shutting Down", "system_shutting_down");
     delay(3000);
+#if defined(ESP8266)
     ESP.deepSleep(0);
+#elif defined(ESP32)
+    esp_deep_sleep_start();
+#endif
   };
 
   commandHandlers["ping"] = [](const JsonDocument &doc)
@@ -256,6 +265,7 @@ void mqttSubscribe(const char *topic)
 
 void mqttPublish(const char *topic, const JsonDocument &payload)
 {
+  static bool reportingPublishFailure = false;
   StaticJsonDocument<512> doc;
 
   unsigned long now = GetEpochTime();
@@ -292,15 +302,25 @@ void mqttPublish(const char *topic, const JsonDocument &payload)
     Serial.print("MQTT_MAX_PACKET_SIZE = ");
     Serial.println(MQTT_MAX_PACKET_SIZE);
 
-    char msg[128];
-    snprintf(msg, sizeof(msg),
-             "MQTT Publish failed to %s. cap:%d used:%d MQTT_MAX_PACKET_SIZE:%d",
-             topic,
-             doc.capacity(),
-             doc.memoryUsage(),
-             MQTT_MAX_PACKET_SIZE);
+    if (!reportingPublishFailure)
+    {
+      reportingPublishFailure = true;
 
-    publishSystemEvent(msg, "mqtt_publish_failed");
+      StaticJsonDocument<160> errorDoc;
+      errorDoc["action_code"] = "mqtt_publish_failed";
+      errorDoc["failed_topic"] = topic;
+
+      char errorBuffer[160];
+      size_t errorLen = serializeJson(errorDoc, errorBuffer);
+      bool errorOk = mqttClient.publish(topics.systemEvents.c_str(), (const uint8_t *)errorBuffer, errorLen, false);
+
+      if (!errorOk)
+      {
+        Serial.println(F("MQTT publish failure report also failed"));
+      }
+
+      reportingPublishFailure = false;
+    }
   } else {
     Serial.println("Published to " + String(topic) + ": " + doc.as<String>());
   }

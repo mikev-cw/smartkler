@@ -1,11 +1,12 @@
-// Defines
-#define MQTT_MAX_PACKET_SIZE 512
-
 // Libs
 #include <Arduino.h>
+#if defined(ESP8266)
+#include <ESP8266WiFi.h>
+#elif defined(ESP32)
+#include <WiFi.h>
+#endif
 #include <ArduinoOTA.h>
 #include <ArduinoJson.h>
-#include <ESP8266WiFi.h>
 #include <PubSubClient.h>
 #include <WiFiManager.h>
 #include <NTPClient.h>
@@ -21,23 +22,45 @@ NTPClient timeClient(ntpUDP, "it.pool.ntp.org");
 // Includes
 #include "globals.h"
 #include "sensors.h"
-#include "wifi.h"
+#include "wifi_utils.h"
 #include "mqtt.h"
 
 // Global defines
 String deviceID;
 String deviceIP;
 Topics topics;
-const int pinIgro = A0;  // igro
-const int pinRelay = D6; // valve relay
+
+#ifndef PIN_IGRO
+#if defined(ESP8266)
+#define PIN_IGRO A0
+#elif defined(ESP32)
+#define PIN_IGRO 34
+#endif
+#endif
+
+#ifndef PIN_RELAY
+#if defined(ESP8266)
+#define PIN_RELAY D6
+#elif defined(ESP32)
+#define PIN_RELAY 26
+#endif
+#endif
+
+const int pinIgro = PIN_IGRO;  // igro
+const int pinRelay = PIN_RELAY; // valve relay
 unsigned long valveDurationMs = 0; // Duration setted for which the valve should be open (in milliseconds)
 
 // Defaults
 const unsigned long valveSecurityStop = 45UL * 60UL * 1000UL; // 45 minutes
 unsigned int defaultDurationMinutes = 10; // Default value when Valve turned on without a duration
 unsigned int defaultMoistureLimit = 150; // Default value for skipping irrigation if soil moisture is above limit when valve is turned on without a limit
+#if defined(ESP8266)
 int soilMoistureCalibrationMin = 300;
 int soilMoistureCalibrationMax = 1023;
+#elif defined(ESP32)
+int soilMoistureCalibrationMin = 1200;
+int soilMoistureCalibrationMax = 4095;
+#endif
 
 // Intervals
 const unsigned long loopIntervalMs = 2UL * 1000UL;                  // Loop interval
@@ -108,12 +131,19 @@ void fauxmoSetup() {
     fauxmo.setPort(80);        // Required for Alexa
     fauxmo.enable(true);
 
-    fauxmo.addDevice("Smartkler 2.0");
+    fauxmo.addDevice(("Irrigatore " + deviceID).c_str()); // Device name that will appear in Alexa app
 
     fauxmo.onSetState([](unsigned char device_id, const char *device_name, bool state, unsigned char value)
     {
       Serial.printf("[FAUXMO] %s -> %s\n", device_name, state ? "ON" : "OFF");
       Serial.printf("[FAUXMO] Device ID: %d, Value: %d\n", device_id, value);
+
+      if (state)
+      {
+        valveDurationMs = (unsigned long)defaultDurationMinutes * 60000UL;
+        lastValveStartTime = millis();
+      }
+
       setRelayState(state);
     });
 }
@@ -121,9 +151,14 @@ void fauxmoSetup() {
 void setup()
 {
   Serial.begin(115200);
+#if defined(ESP8266)
   Serial.setDebugOutput(true);
+#elif defined(ESP32)
+  analogReadResolution(12);
+#endif
 
-  deviceID = (String)ESP.getChipId();
+  deviceID = getDeviceId();
+  deviceID.toUpperCase();
 
   topics = {
       "smartkler/commands/" + deviceID,
@@ -142,7 +177,8 @@ void setup()
   connectToWiFi();
   connectToMQTT();
 
-  // handle WiFi connection events
+  // Handle WiFi connection events
+#if defined(ESP8266)
   WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &event) {
     Serial.printf("WiFi disconnected: reason=%d, RSSI=%d\n", event.reason, WiFi.RSSI());
     WiFi.begin(); 
@@ -152,6 +188,17 @@ void setup()
     deviceIP = getDeviceIP();
     Serial.println("WiFi Reconnected. IP: " + deviceIP);
   });
+#elif defined(ESP32)
+  WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
+    Serial.printf("WiFi disconnected: reason=%d, RSSI=%d\n", info.wifi_sta_disconnected.reason, WiFi.RSSI());
+    WiFi.reconnect();
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+
+  WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t) {
+    deviceIP = getDeviceIP();
+    Serial.println("WiFi Reconnected. IP: " + deviceIP);
+  }, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+#endif
 
   // Alexa related setup
   fauxmoSetup();
@@ -172,6 +219,7 @@ void loop()
     ArduinoOTA.handle();
     fauxmo.handle();
     checkValveWatchdog();
+    processDeferredSensorPublish();
 
     unsigned long now = millis();
 

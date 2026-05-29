@@ -2,6 +2,7 @@
 #define GLOBALS_H
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 struct Topics
 {
@@ -37,5 +38,6 @@ extern unsigned int defaultDurationMinutes;
 extern unsigned int defaultMoistureLimit;
 extern unsigned long lastSensorInfoPublished;
 extern unsigned long sensorInfoPublishIntervalMs;
+String getDeviceId();
 
 #endif

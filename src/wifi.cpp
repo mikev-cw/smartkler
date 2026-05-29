@@ -1,6 +1,10 @@
 #include <Arduino.h>
-#include <WiFiManager.h>
+#if defined(ESP8266)
 #include <ESP8266WiFi.h>
+#elif defined(ESP32)
+#include <WiFi.h>
+#endif
+#include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include "globals.h"
 
@@ -13,7 +17,7 @@ void connectToWiFi()
 {
   WiFiManager wm;
 
-  String device_id = String(ESP.getChipId(), HEX); // ID in esadecimale
+  String device_id = getDeviceId(); // ID in esadecimale
   device_id.toUpperCase();                         // opzionale: maiuscolo
 
   String portalName = "SmartklerSetup-" + device_id;

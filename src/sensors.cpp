@@ -3,6 +3,10 @@
 #include "globals.h"
 #include "mqtt.h"
 
+const unsigned long sensorPublishAfterRelayDelayMs = 750;
+bool sensorPublishPending = false;
+unsigned long sensorPublishDueTime = 0;
+
 StaticJsonDocument<128>& readSoilMoisture(bool forceRead = false)
 {
     unsigned long now = millis();
@@ -71,9 +75,22 @@ int setRelayState(bool state)
     
     mqttPublish(topics.valve.c_str(), msg);
 
-    publishSensorData(true);
+    sensorPublishDueTime = millis() + sensorPublishAfterRelayDelayMs;
+    sensorPublishPending = true;
 
     return digitalRead(pinRelay); // Return the new state
+}
+
+void processDeferredSensorPublish()
+{
+    if (!sensorPublishPending)
+        return;
+
+    if ((long)(millis() - sensorPublishDueTime) < 0)
+        return;
+
+    sensorPublishPending = false;
+    publishSensorData(true);
 }
 
 void checkValveWatchdog()

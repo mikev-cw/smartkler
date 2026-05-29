@@ -8,5 +8,6 @@ StaticJsonDocument<128>& readSoilMoisture (bool forceRead);
 StaticJsonDocument<64>& readRelayState();
 int setRelayState(bool state);
 void checkValveWatchdog();
+void processDeferredSensorPublish();
 
 #endif
